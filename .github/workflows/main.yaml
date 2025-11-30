@@ -1,0 +1,89 @@
+name: deploy to k8s
+
+on:
+  push:
+    branches:
+      - task
+    paths:
+      - "Dockerfile"
+      - "server.js"
+      - ".github/workflows/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build docker image
+        id: build_image
+        run: |
+          IMAGE_TAG=${{ secrets.DOCKER_USERNAME }}/node-app:${{ github.run_id }}
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: get image digest
+        id: digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ steps.build_image.outputs.IMAGE_TAG }})
+          echo "IMAGE_DIGEST=$DIGEST" >> $GITHUB_ENV
+
+      - name: update deployment image
+        run: |
+          sed -i "s|image: .*|image: ${{ env.IMAGE_DIGEST }}|g" deploy-files/deployment.yaml
+
+      - name: Commit & Push Deployment Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update deployment image to ${{ env.IMAGE_DIGEST }}"
+          branch: task-4
+          file_pattern: deploy-files/deployment.yaml
+          commit_user_name: "GitHub Actions"
+          commit_user_email: "github-actions@github.com"
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify Minikube is running
+        run: |
+          minikube status
+          kubectl get nodes
+
+      - name: Deploy to local Minikube
+        run: |
+          kubectl apply -f deploy-files/
+
+      - name: Verify Deployment
+        run: kubectl rollout status deployment/nodejs-deploy
+
+      - name: Rollback on failure
+        if: failure()
+        run: kubectl rollout undo deployment/nodejs-deploy
