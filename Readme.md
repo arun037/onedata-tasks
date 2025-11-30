@@ -28,6 +28,7 @@ the deployment happens to the cluster by argocd
 ![alt text](images/image-6.png)
 
 this was the image version first used
+
 ![alt text](images/image-7.png)
 
 And if auto-sync is enabled argocd watches github for any changes and if it detects it sync with respect to github
