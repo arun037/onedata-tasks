@@ -16,6 +16,6 @@ spec:
     spec:
       containers:
         - name: nodejs
-          image: arunagri03/node-app@sha256:510781196705c4107b86b7664ab76c41148ac48c14f910bc54ccfef0240924d4
+          image: arunagri03/node-app@sha256:bad66c5db232c9f7ede6a4f433efb73a033dfe071bec29c53a17f11c0ddd1f5e
           ports:
             - containerPort: 3000
